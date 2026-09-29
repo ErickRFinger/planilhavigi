@@ -609,8 +609,41 @@ function initLuckysheet(sheetsData) {
     window.luckysheet.create(options);
     setTimeout(setupContextMenuObserver, 1000);
     setTimeout(setupResizeObserver, 1000);
+    setTimeout(setupCurrencyButton, 1000);
   } catch(e) {
     console.error('Falha ao criar Luckysheet:', e);
+  }
+}
+
+// --- CONFIGURAÇÃO DO BOTÃO DE MOEDA (REAL BRASILEIRO R$) ---
+function setupCurrencyButton() {
+  const btn = document.getElementById('luckysheet-icon-currency');
+  if (btn) {
+    btn.setAttribute('data-tips', 'Formatar como Moeda Brasileira (R$)');
+    btn.title = 'Formatar como Moeda Brasileira (R$)';
+    
+    // Substitui o ícone chinês ¥ pelo símbolo elegante R$
+    const iconContainer = btn.querySelector('.luckysheet-icon');
+    if (iconContainer) {
+      iconContainer.innerHTML = '<span style="font-weight: 700; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; line-height: 24px; color: inherit; letter-spacing: -0.5px;">R$</span>';
+    }
+
+    // Intercepta o clique para aplicar R$ #,##0.00 na seleção
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      applyRealCurrencyFormat();
+    }, true);
+  }
+}
+
+function applyRealCurrencyFormat() {
+  if (!window.luckysheet) return;
+  
+  if (window.luckysheet.setRangeFormat) {
+    window.luckysheet.setRangeFormat('ct', { fa: 'R$ #,##0.00', t: 'n' });
+    showToast('Formatação em Real (R$) aplicada!', 'info', 2000);
+    onDataModified();
   }
 }
 

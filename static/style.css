@@ -320,19 +320,76 @@ body.dark-mode #luckysheet-grid-window-1 {
   background-color: #0b1120 !important;
 }
 
+/* ==========================================================================
+   BARRA DE FERRAMENTAS NO MODO ESCURO (100% NÍTIDA E SEM ELEMENTOS OCULTOS)
+   ========================================================================== */
+body.dark-mode #luckysheet-wa-editor,
 body.dark-mode .luckysheet-toolbar {
   background: #0f172a !important;
   border-bottom: 1px solid #1e293b !important;
 }
 
+body.dark-mode #luckysheet-wa-editor *,
+body.dark-mode .luckysheet-toolbar *,
 body.dark-mode .luckysheet-toolbar-button,
-body.dark-mode .luckysheet-toolbar-combo-button {
-  color: #cbd5e1 !important;
+body.dark-mode .luckysheet-toolbar-combo-button,
+body.dark-mode .luckysheet-toolbar-menu-button,
+body.dark-mode .luckysheet-toolbar-menu-button-caption,
+body.dark-mode .luckysheet-toolbar-combo-button-caption,
+body.dark-mode .luckysheet-toolbar-combo-button-input,
+body.dark-mode .luckysheet-toolbar-button-caption,
+body.dark-mode .luckysheet-toolbar .iconfont,
+body.dark-mode .luckysheet-toolbar-button-inner-box,
+body.dark-mode .luckysheet-toolbar-button-outer-box {
+  color: #f1f5f9 !important;
 }
 
+body.dark-mode .luckysheet-toolbar-combo-button-input {
+  background-color: transparent !important;
+  color: #f1f5f9 !important;
+  border: none !important;
+}
+
+/* Setas dos dropdowns na barra de ferramentas */
+body.dark-mode .luckysheet-toolbar-menu-button-arrow,
+body.dark-mode .luckysheet-toolbar-combo-button-arrow {
+  border-top-color: #cbd5e1 !important;
+  opacity: 0.9 !important;
+}
+
+/* Divisores verticais entre botões da barra */
+body.dark-mode .luckysheet-toolbar-separator {
+  border-left: 1px solid #334155 !important;
+}
+
+/* Efeito hover nos botões da barra */
 body.dark-mode .luckysheet-toolbar-button:hover,
-body.dark-mode .luckysheet-toolbar-combo-button:hover {
+body.dark-mode .luckysheet-toolbar-combo-button:hover,
+body.dark-mode .luckysheet-toolbar-menu-button:hover {
+  background-color: #1e293b !important;
+  border-radius: 4px !important;
+}
+
+/* Menus dropdown que abrem da barra de ferramentas */
+body.dark-mode .luckysheet-toolbar-menu,
+body.dark-mode .luckysheet-menu,
+body.dark-mode .luckysheet-toolbar-select-menu,
+body.dark-mode .luckysheet-cols-menu {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.dark-mode .luckysheet-toolbar-menu *,
+body.dark-mode .luckysheet-menu *,
+body.dark-mode .luckysheet-toolbar-select-menu * {
+  color: #f1f5f9 !important;
+}
+
+body.dark-mode .luckysheet-toolbar-menu-item:hover,
+body.dark-mode .luckysheet-menu-item:hover {
   background-color: #334155 !important;
+  color: #4ade80 !important;
 }
 
 /* Caixa de edição inline ao digitar na célula */

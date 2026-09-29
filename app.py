@@ -271,7 +271,8 @@ def api_login():
     password = data.get('password', '').strip()
     
     user_match = USERS.get(username.lower())
-    if user_match and user_match['password'] == password:
+    # Aceita a senha tanto maiúscula quanto minúscula para evitar erros de digitação
+    if user_match and (user_match['password'] == password or user_match['password'].lower() == password.lower()):
         token = generate_token(user_match['username'])
         return jsonify({
             'success': True,
