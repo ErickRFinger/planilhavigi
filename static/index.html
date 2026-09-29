@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIGI - Gestão de Planilhas & Clientes</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23107c41'><path d='M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14H6v-2h4v2zm0-4H6v-2h4v2zm0-4H6V7h4v2zm8 8h-6v-2h6v2zm0-4h-6v-2h6v2zm0-4h-6V7h6v2z'/></svg>">
+  
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Luckysheet CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet/dist/plugins/css/pluginsCss.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet/dist/plugins/plugins.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet/dist/css/luckysheet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet/dist/assets/iconfont/iconfont.css" />
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app-container">
+    
+    <!-- Top Header Bar -->
+    <header class="excel-header">
+      <div class="top-bar">
+        <!-- Logo & Document Title -->
+        <div class="brand-section">
+          <div class="app-icon" title="VIGI Planilhas Online">
+            <i class="fa-solid fa-file-excel"></i>
+          </div>
+          <div class="doc-info">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="doc-title" id="doc-title" contenteditable="true">VIGI 2026 - Gestão de Clientes</span>
+              <span class="sync-badge" id="sync-status">
+                <span class="sync-dot"></span>
+                <span id="sync-status-text">Conectando...</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Global Search Bar -->
+        <div class="search-container" title="Pressione Enter para buscar o próximo">
+          <i class="fa-solid fa-magnifying-glass" style="font-size: 13px; color: var(--text-secondary);"></i>
+          <input type="text" id="global-search-input" class="search-input" placeholder="Buscar cliente, serial, email...">
+          <span id="search-count" style="font-size: 11px; color: var(--text-secondary); display: none;"></span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions-section">
+          <!-- Salvar -->
+          <button class="btn-header btn-save" id="btn-save" title="Salvar alterações na nuvem e no arquivo Excel (Ctrl+S)">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Salvar</span>
+          </button>
+
+          <!-- Logs de Alterações (Supervisor Only) -->
+          <button class="btn-header btn-logs" id="btn-open-logs" style="display: none;" title="Apenas Supervisores: Ver histórico e auditoria de alterações">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>Logs de Alterações</span>
+          </button>
+
+          <!-- Exportar XLSX -->
+          <button class="btn-header btn-secondary" id="btn-download" title="Baixar planilha atualizada no formato Excel (.xlsx)">
+            <i class="fa-solid fa-file-arrow-down"></i>
+            <span>Baixar Excel</span>
+          </button>
+
+          <!-- Importar XLSX -->
+          <button class="btn-header btn-secondary" id="btn-upload-trigger" title="Carregar outra planilha Excel">
+            <i class="fa-solid fa-file-arrow-up"></i>
+            <span>Importar</span>
+          </button>
+          <input type="file" id="excel-file-input" accept=".xlsx" style="display: none;">
+
+          <!-- Acessar em outros PCs -->
+          <button class="btn-header btn-share" id="btn-network-info" title="Como acessar de outros computadores ou celulares">
+            <i class="fa-solid fa-network-wired"></i>
+            <span>Outros PCs</span>
+          </button>
+
+          <!-- Alternar Tema Escuro / Claro -->
+          <button class="btn-header btn-theme-toggle" id="btn-theme-toggle" title="Alternar entre Tema Escuro e Claro">
+            <i class="fa-solid fa-moon" id="theme-icon"></i>
+          </button>
+
+          <!-- Tela Cheia -->
+          <button class="btn-header btn-secondary" id="btn-fullscreen" title="Alternar tela cheia">
+            <i class="fa-solid fa-expand"></i>
+          </button>
+
+          <!-- Usuário, Cargo & Logout -->
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 6px; border-left: 1px solid var(--border-color); padding-left: 10px;">
+            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+              <span id="current-user-display" style="font-size: 13px; font-weight: 600; color: var(--text-main);">Erick</span>
+              <span id="current-role-badge" class="role-badge supervisor">Supervisor</span>
+            </div>
+            <button class="btn-header btn-danger" id="btn-logout" title="Sair do sistema">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Spreadsheet Container (Luckysheet) -->
+    <main id="luckysheet-wrap">
+      <div id="luckysheet"></div>
+    </main>
+
+  </div>
+
+  <!-- Modal de Login -->
+  <div class="modal-overlay" id="login-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="login-icon-box">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h2 style="text-align: center; font-size: 20px; font-weight: 700; margin-bottom: 6px;">VIGI Excel Online</h2>
+      <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">
+        Digite seu usuário e senha para acessar os dados dos clientes
+      </p>
+
+      <div class="error-banner" id="login-error">
+        <i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i>
+        <span id="login-error-text">Usuário ou senha incorretos!</span>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="login-username">Usuário</label>
+          <div class="input-group">
+            <input type="text" id="login-username" class="form-input" placeholder="Ex: Erick, Daniel, Michel..." required autofocus>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="login-password">Senha</label>
+          <div class="input-group">
+            <input type="password" id="login-password" class="form-input" placeholder="Digite sua senha" required>
+            <i class="fa-regular fa-eye toggle-pwd" id="toggle-password" title="Mostrar/ocultar senha"></i>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 13px;">
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-secondary);">
+            <input type="checkbox" id="remember-me" checked>
+            <span>Lembrar neste computador</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-primary-block" id="btn-login-submit">
+          <i class="fa-solid fa-arrow-right-to-bracket" style="margin-right: 6px;"></i>
+          <span>Entrar no Sistema</span>
+        </button>
+
+        <div style="margin-top: 16px; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; font-size: 11px; color: var(--text-secondary);">
+          <strong>Perfis Cadastrados:</strong><br>
+          • <strong>Supervisores:</strong> Erick (senha <code>324354</code>) • Daniel (senha <code>Margot</code>)<br>
+          • <strong>Agentes:</strong> Michel, Gabriely, Klaus (senha <code>Clic@3369</code>)
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Auditoria e Logs de Alterações (Supervisor Only) -->
+  <div class="modal-overlay" id="logs-modal" style="display: none;">
+    <div class="modal-card large">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: #0284c7; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main);">Histórico de Auditoria & Alterações</h3>
+            <span style="font-size: 12px; color: var(--text-secondary);">Acesso exclusivo para Supervisores (Erick & Daniel)</span>
+          </div>
+        </div>
+        <button id="close-logs-modal" style="background: none; border: none; font-size: 22px; color: var(--text-secondary); cursor: pointer;">&times;</button>
+      </div>
+
+      <!-- Filtros da Tabela -->
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px;">
+        <!-- Filtro por Funcionário -->
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Funcionário:</span>
+          <select id="log-filter-user" class="form-input" style="padding: 6px 10px; font-size: 12px; width: auto;">
+            <option value="">Todos os Funcionários</option>
+            <option value="Michel">Michel (Agente)</option>
+            <option value="Gabriely">Gabriely (Agente)</option>
+            <option value="Klaus">Klaus (Agente)</option>
+            <option value="Erick">Erick (Supervisor)</option>
+            <option value="Daniel">Daniel (Supervisor)</option>
+          </select>
+        </div>
+
+        <!-- Filtro por Aba -->
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Aba:</span>
+          <select id="log-filter-sheet" class="form-input" style="padding: 6px 10px; font-size: 12px; width: auto;">
+            <option value="">Todas as Abas</option>
+            <option value="CLIENTES VIGI HIK">CLIENTES VIGI HIK</option>
+            <option value="CLIENTE VIGI UNV">CLIENTE VIGI UNV</option>
+            <option value="CANCELAMENTOS">CANCELAMENTOS</option>
+            <option value="CLIENTES INTELBRAS">CLIENTES INTELBRAS</option>
+            <option value="PREF. BANDEIRANTE">PREF. BANDEIRANTE</option>
+            <option value="PREF. DIONÍSIO">PREF. DIONÍSIO</option>
+            <option value="PREF. GUARACIABA">PREF. GUARACIABA</option>
+            <option value="BARATO MANIA">BARATO MANIA</option>
+            <option value="MEGA10">MEGA10</option>
+            <option value="TERRA VIVA">TERRA VIVA</option>
+            <option value="MARCON">MARCON</option>
+            <option value="LITTLE ANGEL">LITTLE ANGEL</option>
+            <option value="LETAVO">LETAVO</option>
+            <option value="HE LATICINIOS">HE LATICINIOS</option>
+            <option value="AGRO HS">AGRO HS</option>
+          </select>
+        </div>
+
+        <!-- Busca de Texto nos Logs -->
+        <div style="flex: 1; min-width: 180px;">
+          <input type="text" id="log-search-text" class="form-input" style="padding: 6px 10px; font-size: 12px;" placeholder="Buscar valor antigo, novo ou célula...">
+        </div>
+
+        <!-- Botões de Ação nos Logs -->
+        <button class="btn-header btn-secondary" id="btn-refresh-logs" style="padding: 6px 10px; font-size: 12px;">
+          <i class="fa-solid fa-arrows-rotate"></i> Atualizar
+        </button>
+        <button class="btn-header btn-secondary" id="btn-export-logs" style="padding: 6px 10px; font-size: 12px;">
+          <i class="fa-solid fa-file-csv"></i> Exportar CSV
+        </button>
+      </div>
+
+      <!-- Tabela com os Logs -->
+      <div class="logs-table-container">
+        <table class="logs-table">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Data & Hora</th>
+              <th style="width: 140px;">Funcionário</th>
+              <th style="width: 150px;">Aba da Planilha</th>
+              <th style="width: 90px;">Célula</th>
+              <th style="width: 130px;">Ação</th>
+              <th>Valor Anterior</th>
+              <th>Valor Novo</th>
+            </tr>
+          </thead>
+          <tbody id="logs-table-body">
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 24px; color: var(--text-secondary);">
+                <i class="fa-solid fa-spinner fa-spin"></i> Carregando registros de auditoria...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Rodapé do Modal -->
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 12px; color: var(--text-secondary);">
+        <span id="logs-counter">Total: 0 alterações registradas</span>
+        <button class="btn-header btn-secondary" onclick="document.getElementById('logs-modal').style.display='none'">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Acesso em Outros PCs -->
+  <div class="modal-overlay" id="network-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <h3 style="font-size: 18px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-globe" style="color: #107c41;"></i>
+          Como Acessar em Outros Computadores
+        </h3>
+        <button id="close-network-modal" style="background: none; border: none; font-size: 18px; color: var(--text-secondary); cursor: pointer;">&times;</button>
+      </div>
+
+      <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px;">
+        Este aplicativo está disponível para <strong>qualquer computador, notebook ou smartphone</strong> conectado à mesma rede ou via VPN:
+      </p>
+
+      <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">LINKS DE ACESSO DIRETO:</div>
+        <div id="network-links-container" style="display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+
+      <div style="background: rgba(16, 124, 65, 0.1); border: 1px solid rgba(16, 124, 65, 0.25); border-radius: 8px; padding: 12px; font-size: 13px; color: #107c41;">
+        <i class="fa-solid fa-shield-halved" style="margin-right: 6px;"></i>
+        <strong>Segurança & Isolamento de Dados:</strong>
+        <p style="margin-top: 4px; font-size: 12px;">
+          As planilhas são armazenadas exclusivamente no bucket <code>vigi_spreadsheets</code>, sem tocar ou misturar com nenhuma tabela pré-existente do seu banco Supabase.
+        </p>
+      </div>
+
+      <div style="margin-top: 18px; text-align: right;">
+        <button class="btn-header btn-secondary" onclick="document.getElementById('network-modal').style.display='none'">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Luckysheet Dependencies (Plugins & Core) -->
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet/dist/plugins/js/plugin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet/dist/luckysheet.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckyexcel/dist/luckyexcel.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
