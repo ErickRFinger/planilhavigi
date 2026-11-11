@@ -5,8 +5,7 @@
 
 const SUPABASE_CONFIG = {
   url: "https://hnfhrjgzeivzrcpumkyk.supabase.co",
-  anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuZmhyamd6ZWl2enJjcHVta3lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3Mjg5MTQsImV4cCI6MjA4ODMwNDkxNH0.qWKErHq6vCPRWdDfrnngY8fPiJ05VR586U0GzZ3vmrI",
-  serviceRole: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuZmhyamd6ZWl2enJjcHVta3lrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjcyODkxNCwiZXhwIjoyMDg4MzA0OTE0fQ.lG8gV39uSSStfgbSUnBJkGogYdn-zYh3ffUdsjj_xWE",
+  anonKey: "sb_publishable_ekOWLdVoQWfk6UANQPiYDg_o6bkYCmX",
   bucket: "vigi_spreadsheets"
 };
 
@@ -364,21 +363,23 @@ async function loadSpreadsheetData() {
     let sheets = null;
 
     try {
-      const resLocal = await fetch('/api/sheets', {
-        headers: { 'Authorization': `Bearer ${AppState.token}` }
-      });
-      if (resLocal.ok) {
-        const json = await resLocal.json();
-        sheets = json.sheets;
+      const supabaseUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${SUPABASE_CONFIG.bucket}/sheet_data.json?t=${Date.now()}`;
+      const resSupabase = await fetch(supabaseUrl, { cache: 'no-store' });
+      if (resSupabase.ok) {
+        sheets = await resSupabase.json();
       }
     } catch(e) {}
 
     if (!sheets || !Array.isArray(sheets) || sheets.length === 0) {
-      const supabaseUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${SUPABASE_CONFIG.bucket}/sheet_data.json?t=${Date.now()}`;
-      const resSupabase = await fetch(supabaseUrl);
-      if (resSupabase.ok) {
-        sheets = await resSupabase.json();
-      }
+      try {
+        const resLocal = await fetch('/api/sheets', {
+          headers: { 'Authorization': `Bearer ${AppState.token}` }
+        });
+        if (resLocal.ok) {
+          const json = await resLocal.json();
+          sheets = json.sheets;
+        }
+      } catch(e) {}
     }
 
     if (!sheets || !Array.isArray(sheets) || sheets.length === 0) {
@@ -707,36 +708,59 @@ async function saveSpreadsheet(isAutoSave = false) {
     let savedInSupabase = false;
     let savedLocally = false;
 
-    // 1. Salva no Supabase Storage Bucket
+    // 1. Salva no Supabase Storage Bucket via URL assinada gerada pelo servidor
+    const jsonStr = JSON.stringify(sheetsData);
     try {
-      const jsonStr = JSON.stringify(sheetsData);
-      const resSupa = await fetch(`${SUPABASE_CONFIG.url}/storage/v1/object/${SUPABASE_CONFIG.bucket}/sheet_data.json`, {
+      const resSign = await fetch('/api/upload-url', {
         method: 'POST',
         headers: {
-          'apikey': SUPABASE_CONFIG.serviceRole,
-          'Authorization': `Bearer ${SUPABASE_CONFIG.serviceRole}`,
           'Content-Type': 'application/json',
-          'x-upsert': 'true'
+          'Authorization': `Bearer ${AppState.token}`
         },
-        body: jsonStr
+        body: JSON.stringify({ filename: 'sheet_data.json' })
       });
-      if (resSupa.ok) savedInSupabase = true;
+      if (resSign.ok) {
+        const signData = await resSign.json();
+        if (signData && signData.upload_url) {
+          const resPut = await fetch(signData.upload_url, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-upsert': 'true'
+            },
+            body: jsonStr
+          });
+          if (resPut.ok) savedInSupabase = true;
+        }
+      }
     } catch(err) {}
 
-    // 2. Salva no servidor local para atualizar o Excel e gravar os logs
+    // 2. Registra os logs e metadados no servidor (e envia a planilha caso o upload direto não tenha ocorrido)
     try {
+      const savePayload = savedInSupabase
+        ? {
+            already_uploaded: true,
+            total_sheets: Array.isArray(sheetsData) ? sheetsData.length : 0,
+            sheet_names: Array.isArray(sheetsData) ? sheetsData.map(s => s.name) : [],
+            logs: logsToSend
+          }
+        : {
+            sheets: sheetsData,
+            logs: logsToSend
+          };
       const resLocal = await fetch('/api/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AppState.token}`
         },
-        body: JSON.stringify({
-          sheets: sheetsData,
-          logs: logsToSend
-        })
+        body: JSON.stringify(savePayload)
       });
-      if (resLocal.ok) savedLocally = true;
+      if (resLocal.ok) {
+        const saveRes = await resLocal.json();
+        savedLocally = true;
+        if (saveRes && saveRes.supabase_synced) savedInSupabase = true;
+      }
     } catch(err) {}
 
     if (savedInSupabase || savedLocally) {

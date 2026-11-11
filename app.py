@@ -29,9 +29,28 @@ except ImportError:
 
 # Configurações do Supabase (lê de variáveis de ambiente com fallback)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hnfhrjgzeivzrcpumkyk.supabase.co").rstrip('/')
-SUPABASE_SERVICE_ROLE = os.environ.get("SUPABASE_SERVICE_ROLE", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuZmhyamd6ZWl2enJjcHVta3lrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjcyODkxNCwiZXhwIjoyMDg4MzA0OTE0fQ.lG8gV39uSSStfgbSUnBJkGogYdn-zYh3ffUdsjj_xWE")
-SUPABASE_ANON = os.environ.get("SUPABASE_ANON_KEY", os.environ.get("SUPABASE_ANON", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuZmhyamd6ZWl2enJjcHVta3lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3Mjg5MTQsImV4cCI6MjA4ODMwNDkxNH0.qWKErHq6vCPRWdDfrnngY8fPiJ05VR586U0GzZ3vmrI"))
+SUPABASE_SERVICE_ROLE = (
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("SUPABASE_SERVICE_ROLE")
+    or os.environ.get("SUPABASE_SECRET_KEY")
+    or ""
+).strip()
+SUPABASE_ANON = (
+    os.environ.get("SUPABASE_ANON_KEY")
+    or os.environ.get("SUPABASE_ANON")
+    or "sb_publishable_ekOWLdVoQWfk6UANQPiYDg_o6bkYCmX"
+).strip()
 BUCKET = os.environ.get("SUPABASE_BUCKET", "vigi_spreadsheets")
+
+
+def supabase_headers(content_type=None, upsert=False):
+    key = SUPABASE_SERVICE_ROLE or SUPABASE_ANON
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+    if upsert:
+        headers["x-upsert"] = "true"
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
 
 # Definição de Usuários e Cargos solicitados
 USERS = {
@@ -124,6 +143,23 @@ def get_authenticated_user(req):
     return None
 
 def load_logs():
+    if os.path.exists(LOGS_FILE) and not IS_VERCEL:
+        try:
+            with open(LOGS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}/change_logs.json?t={int(time.time())}",
+            timeout=5
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
     if os.path.exists(LOGS_FILE):
         try:
             with open(LOGS_FILE, 'r', encoding='utf-8') as f:
@@ -138,18 +174,13 @@ def save_logs(logs):
             json.dump(logs, f, ensure_ascii=False, indent=2)
             
         # Sincroniza logs com Supabase Storage de forma assíncrona/rápida
-        headers = {
-            "apikey": SUPABASE_SERVICE_ROLE,
-            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE}",
-            "x-upsert": "true",
-            "Content-Type": "application/json"
-        }
-        requests.post(
-            f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/change_logs.json",
-            headers=headers,
-            data=json.dumps(logs, ensure_ascii=False).encode('utf-8'),
-            timeout=5
-        )
+        if SUPABASE_SERVICE_ROLE:
+            requests.post(
+                f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/change_logs.json",
+                headers=supabase_headers(content_type="application/json", upsert=True),
+                data=json.dumps(logs, ensure_ascii=False).encode('utf-8'),
+                timeout=5
+            )
     except Exception as e:
         print(f"[Logs Save Error]: {e}")
 
@@ -216,36 +247,45 @@ def luckysheet_to_workbook(sheets_data):
     return wb
 
 def sync_to_supabase(json_bytes, xlsx_bytes, metadata):
+    if not SUPABASE_SERVICE_ROLE:
+        print("[Supabase Sync Error]: SUPABASE_SERVICE_ROLE ausente")
+        return False
     try:
-        headers = {
-            "apikey": SUPABASE_SERVICE_ROLE,
-            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE}",
-            "x-upsert": "true"
-        }
-        
-        requests.post(
-            f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/sheet_data.json",
-            headers={**headers, "Content-Type": "application/json"},
-            data=json_bytes,
-            timeout=10
-        )
-        
+        ok = True
+        if json_bytes:
+            r_json = requests.post(
+                f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/sheet_data.json",
+                headers=supabase_headers(content_type="application/json", upsert=True),
+                data=json_bytes,
+                timeout=15
+            )
+            if not r_json.ok:
+                print(f"[Supabase Sync Error sheet_data.json]: {r_json.status_code} {r_json.text[:200]}")
+                ok = False
+
         if xlsx_bytes:
-            requests.post(
+            r_xlsx = requests.post(
                 f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/VIGI_2026.xlsx",
-                headers={**headers, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+                headers=supabase_headers(
+                    content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    upsert=True
+                ),
                 data=xlsx_bytes,
                 timeout=15
             )
-            
+            if not r_xlsx.ok:
+                print(f"[Supabase Sync Error VIGI_2026.xlsx]: {r_xlsx.status_code} {r_xlsx.text[:200]}")
+
         if metadata:
-            requests.post(
+            r_meta = requests.post(
                 f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/metadata.json",
-                headers={**headers, "Content-Type": "application/json"},
+                headers=supabase_headers(content_type="application/json", upsert=True),
                 data=json.dumps(metadata).encode('utf-8'),
                 timeout=5
             )
-        return True
+            if not r_meta.ok:
+                print(f"[Supabase Sync Error metadata.json]: {r_meta.status_code} {r_meta.text[:200]}")
+        return ok
     except Exception as e:
         print(f"[Supabase Sync Error]: {e}")
         return False
@@ -301,7 +341,23 @@ def api_get_sheets():
     user = get_authenticated_user(request)
     if not user:
         return jsonify({'error': 'Não autorizado'}), 401
-    
+
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}/sheet_data.json?t={int(time.time())}",
+            timeout=10
+        )
+        if r.status_code == 200:
+            data = r.json()
+            try:
+                with open(DATA_CACHE_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False)
+            except Exception:
+                pass
+            return jsonify({'sheets': data, 'source': 'supabase_cloud'})
+    except Exception as e:
+        print(f"Erro ao buscar do Supabase: {e}")
+
     if os.path.exists(DATA_CACHE_FILE):
         try:
             with open(DATA_CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -309,18 +365,39 @@ def api_get_sheets():
             return jsonify({'sheets': data, 'source': 'local_cache'})
         except Exception as e:
             print(f"Erro ao ler cache: {e}")
-            
-    try:
-        r = requests.get(f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}/sheet_data.json", timeout=6)
-        if r.status_code == 200:
-            data = r.json()
-            with open(DATA_CACHE_FILE, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False)
-            return jsonify({'sheets': data, 'source': 'supabase_cloud'})
-    except Exception as e:
-        print(f"Erro ao buscar do Supabase: {e}")
-        
+
     return jsonify({'error': 'Nenhum dado encontrado'}), 404
+
+
+@app.route('/api/upload-url', methods=['POST'])
+def api_upload_url():
+    user = get_authenticated_user(request)
+    if not user:
+        return jsonify({'error': 'Não autorizado'}), 401
+    if not SUPABASE_SERVICE_ROLE:
+        return jsonify({'error': 'SUPABASE_SERVICE_ROLE não configurada no servidor'}), 500
+
+    data = request.get_json(silent=True) or {}
+    filename = data.get('filename', 'sheet_data.json')
+    if filename not in ('sheet_data.json', 'VIGI_2026.xlsx', 'metadata.json', 'change_logs.json'):
+        return jsonify({'error': 'Arquivo inválido'}), 400
+
+    try:
+        r = requests.post(
+            f"{SUPABASE_URL}/storage/v1/object/upload/sign/{BUCKET}/{filename}",
+            headers=supabase_headers(upsert=True),
+            timeout=8
+        )
+        if not r.ok:
+            return jsonify({'error': f'Falha ao gerar URL assinada ({r.status_code})'}), 502
+        signed_rel = r.json().get('url', '')
+        return jsonify({
+            'success': True,
+            'upload_url': f"{SUPABASE_URL}/storage/v1{signed_rel}"
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/save', methods=['POST'])
 def api_save_sheets():
@@ -330,46 +407,57 @@ def api_save_sheets():
         
     payload = request.get_json(silent=True) or {}
     sheets_data = payload.get('sheets')
+    already_uploaded = bool(payload.get('already_uploaded'))
     client_logs = payload.get('logs', [])
     
-    if not sheets_data or not isinstance(sheets_data, list):
+    if not already_uploaded and (not sheets_data or not isinstance(sheets_data, list)):
         return jsonify({'error': 'Dados inválidos'}), 400
         
     try:
         t0 = time.time()
-        json_str = json.dumps(sheets_data, ensure_ascii=False)
-        json_bytes = json_str.encode('utf-8')
-        with open(DATA_CACHE_FILE, 'wb') as f:
-            f.write(json_bytes)
+        json_bytes = None
+        xlsx_bytes = None
+
+        if sheets_data and isinstance(sheets_data, list):
+            json_str = json.dumps(sheets_data, ensure_ascii=False)
+            json_bytes = json_str.encode('utf-8')
+            with open(DATA_CACHE_FILE, 'wb') as f:
+                f.write(json_bytes)
+                
+            main_excel = get_main_excel_path()
+            if os.path.exists(main_excel) and not IS_VERCEL:
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_name = f"VIGI_backup_{timestamp}.xlsx"
+                backup_path = os.path.join(BACKUPS_DIR, backup_name)
+                try:
+                    shutil.copy2(main_excel, backup_path)
+                except Exception:
+                    pass
+                
+            wb = luckysheet_to_workbook(sheets_data)
+            excel_save_target = os.path.join(WRITE_DIR, "VIGI_2026.xlsx") if IS_VERCEL else main_excel
+            wb.save(excel_save_target)
             
-        main_excel = get_main_excel_path()
-        if os.path.exists(main_excel) and not IS_VERCEL:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_name = f"VIGI_backup_{timestamp}.xlsx"
-            backup_path = os.path.join(BACKUPS_DIR, backup_name)
-            try:
-                shutil.copy2(main_excel, backup_path)
-            except Exception:
-                pass
-            
-        wb = luckysheet_to_workbook(sheets_data)
-        excel_save_target = os.path.join(WRITE_DIR, "VIGI_2026.xlsx") if IS_VERCEL else main_excel
-        wb.save(excel_save_target)
-        
-        with open(excel_save_target, 'rb') as f:
-            xlsx_bytes = f.read()
+            with open(excel_save_target, 'rb') as f:
+                xlsx_bytes = f.read()
+
+            sheet_names = [s.get('name') for s in sheets_data]
+            total_sheets = len(sheets_data)
+        else:
+            sheet_names = payload.get('sheet_names') or []
+            total_sheets = payload.get('total_sheets') or len(sheet_names)
             
         metadata = {
             "last_updated": datetime.datetime.now().isoformat(),
             "updated_by": user['username'],
             "user_role": user['role'],
-            "total_sheets": len(sheets_data),
-            "sheet_names": [s.get('name') for s in sheets_data]
+            "total_sheets": total_sheets,
+            "sheet_names": sheet_names
         }
         with open(METADATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2)
             
-        supabase_ok = sync_to_supabase(json_bytes, xlsx_bytes, metadata)
+        supabase_ok = sync_to_supabase(None if already_uploaded else json_bytes, xlsx_bytes, metadata)
         
         # Registra logs de auditoria
         current_logs = load_logs()
